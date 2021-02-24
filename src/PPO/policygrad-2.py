@@ -84,7 +84,7 @@ def explore(env, model, num_steps=500):
     return states, actions, rewards, action_probs
 
 
-def replay(model, transitions, rewards, action_probs, gamma=0.99, epsilon=0.2, c1=0.5, c2=0.01):
+def replay(model, transitions, rewards, action_probs, gamma=0.99, epsilon=0.2, c1=0.5, c2=0.001):
     discounted_rewards = []
 
     # gamma discounts future rewards dumbfuck
@@ -117,9 +117,10 @@ def replay(model, transitions, rewards, action_probs, gamma=0.99, epsilon=0.2, c
     surr1 = ratios * advantages
     surr2 = torch.clamp(ratios, 1-epsilon, 1+epsilon) * advantages
 
-    entropy = torch.distributions.Categorical(torch.log(torch.Tensor(action_probs))).entropy()
+    # entropy term to encourage exploration
+    entropy = torch.distributions.Categorical(torch.log(new_probs)).entropy()
 
-    loss = -torch.min(surr1, surr2) + c1*F.mse_loss(expected_values.squeeze(), discounted_rewards.squeeze())# - c2*entropy
+    loss = -torch.min(surr1, surr2) + c1*F.mse_loss(expected_values.squeeze(), discounted_rewards.squeeze()) - c2*entropy
 
     model.train().to(device)
     if model.optim is None:
