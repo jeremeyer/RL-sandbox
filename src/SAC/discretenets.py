@@ -40,11 +40,15 @@ class discreteQNet(nn.Module):
     def forward(self, state):
         return self.qnet.forward(Variable(state))
 
+    def evaluate_action_batch(self, states, actions):
+        outputs = self.forward(states).squeeze(1)
+        return outputs[torch.arange(outputs.size(0)), actions]
+
     def evaluate_state_tensor(self, state):
         return self.forward(state)
 
     def evaluate_action_tensor(self, state, action):
-        return self.evaluate_state_tensor(state).squeeze(0)[action]
+        return self.evaluate_state_tensor(state).squeeze()[action]
 
     def evaluate_state(self, state):
         return self.evaluate_state_tensor(torch.from_numpy(state).float().unsqueeze(0))
@@ -56,6 +60,7 @@ class discreteQNet(nn.Module):
 class discretePolicyNet(nn.Module):
     def __init__(self, in_dim, num_actions, num_layers, neurons_per_layer):
         super(discretePolicyNet, self).__init__()
+        self.num_actions = num_actions
         self.policynet = build_relu_network(in_dim, num_actions, num_layers, neurons_per_layer, end_softmax=True)
 
     def forward(self, data):
@@ -70,8 +75,21 @@ class discretePolicyNet(nn.Module):
     def evaluate_transition(self, state, action):
         return self.evaluate_transition_tensor(torch.from_numpy(state).float().unsqueeze(0), action)
 
+    def evaluate_transition_batch(self, states, actions):
+        output = self.forward(states).squeeze(1)
+        return output[torch.arange(output.size(0)), actions]
+
     def get_action_from_tensor(self, state):
-        probs = self.forward(torch.from_numpy(state).unsqueeze(0))
+        probs = self.forward(state)
         action = np.random.choice(self.num_actions, p=np.squeeze(probs.detach().numpy()))
 
         return action, probs.squeeze(0)[action]
+
+    def get_action(self, state):
+        return self.get_action_from_tensor(torch.from_numpy(state).float().unsqueeze(0))
+
+    def get_log_prob(self, state, action):
+        return torch.log(self.evaluate_transition(state, action))
+
+    def get_log_prob_batch(self, states, actions):
+        return torch.log(self.evaluate_transition_batch(states, actions))
